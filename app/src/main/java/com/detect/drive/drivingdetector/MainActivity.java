@@ -9,6 +9,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.graphics.BitmapFactory;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
 import android.hardware.SensorManager;
 import android.os.Bundle;
 import android.support.annotation.NonNull;
@@ -27,16 +30,18 @@ import com.google.android.gms.location.ActivityRecognition;
 
 import java.util.Calendar;
 
-public class MainActivity extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener{
+public class MainActivity extends AppCompatActivity implements GoogleApiClient.ConnectionCallbacks, GoogleApiClient.OnConnectionFailedListener, SensorEventListener{
 
     public GoogleApiClient apiClient;
     private String xMessage = "";
 
     private static final int ADMIN_INTENT = 15;
-    private static final String description = "Some Description About Your Admin";
+    private static final String description = "Allow Driver Detector to use phone locking feature.";
     private DevicePolicyManager mDevicePolicyManager;
     private ComponentName mComponentName;
     private SensorManager sensorManager;
+    private Sensor magsensor;
+    private double magnitude;
 
 
     @Override
@@ -49,6 +54,9 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
                 addConnectionCallbacks(MainActivity.this).
                 build();
         apiClient.connect();
+
+        sensorManager=(SensorManager)getSystemService(SENSOR_SERVICE);
+        magsensor=sensorManager.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
 
         LocalBroadcastManager.getInstance(MainActivity.this).registerReceiver(nMessageReceiver, new IntentFilter("activity-event"));
 
@@ -74,7 +82,12 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
                 txt1.setMovementMethod(new ScrollingMovementMethod());
                 txt1.setText(txt1.getText() + message + "\n");
             }
-            if(strArr[0].equals("IN_VEHICLE") && (Integer.parseInt(strArr[1]) > 40)){
+            if(message.contains("VEHICLE")){
+                TextView txt1 = (TextView) findViewById(R.id.txt1);
+                txt1.setMovementMethod(new ScrollingMovementMethod());
+                txt1.setText(txt1.getText() +"<"+strArr[0] +"><"+strArr[1]+"><"+magnitude+">\n");
+            }
+            if(strArr[0].equals("IN_VEHICLE") && (Integer.parseInt(strArr[1]) > 40) && magnitude > 70){
                 lockNow();
                 displayNotification();
             }
@@ -96,6 +109,15 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
 
     @Override
     public void onConnectionSuspended(int i) {
+
+    }
+
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        float x=event.values[0];
+        float y=event.values[1];
+        float z=event.values[2];
+        magnitude = Math.sqrt((x * x) + (y * y) + (z * z));
 
     }
 
@@ -133,6 +155,26 @@ public class MainActivity extends AppCompatActivity implements GoogleApiClient.C
         notificationBuilder.setDefaults(Notification.DEFAULT_SOUND|Notification.DEFAULT_LIGHTS|Notification.DEFAULT_VIBRATE);
         NotificationManagerCompat notificationManagerCompat = NotificationManagerCompat.from(MainActivity.this);
         notificationManagerCompat.notify(1,notificationBuilder.build());
+
+    }
+
+    @Override
+    protected void onResume() {
+        sensorManager.registerListener(this,magsensor,SensorManager.SENSOR_DELAY_NORMAL);
+
+        super.onResume();
+    }
+
+
+    @Override
+    protected void onPause() {
+        sensorManager.unregisterListener(this);
+        super.onPause();
+    }
+
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+        // TODO Auto-generated method stub
 
     }
 }
